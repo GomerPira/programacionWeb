@@ -1,6 +1,4 @@
-Aquí tienes el documento Domain Value Objects.md completamente adaptado a Python, respetando al 100% las especificaciones actualizadas de la guía (incluyendo los nuevos estados de préstamos como OVERDUE y CANCELLED, así como todas las reglas de diseño inmutable para DDD):
 
-Markdown
 # Objetos de Valor e Inmutables del Dominio (Domain Value Objects)
 
 ## Introducción
