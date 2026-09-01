@@ -1,213 +1,116 @@
-# Puertos de Salida (Output Ports / Repository Interfaces)
+# Puertos de Salida (Output Ports) - NexusMarket
 
 ## Introducción
 
-Los Puertos de Salida (*Output Ports*) representan las interfaces abstractas que definen las necesidades de interacción del Dominio bancario hacia el exterior. 
-
-Bajo la Arquitectura Hexagonal, el Dominio no conoce las bases de datos (PostgreSQL, MongoDB), los brokers de eventos ni los servicios externos de mensajería (Twilio, SendGrid). En su lugar, el Dominio define estos contratos (`ABC`) que deben ser implementados por los **Adaptadores de Salida** en la capa de infraestructura.
+Los **Output Ports** (Puertos de Salida) definen los contratos e interfaces abstractas que el núcleo del dominio necesita invocando hacia la infraestructura externa. Incluyen el acceso a la persistencia de datos (Repositorios) e integraciones con servicios externos como pasarelas de pago, servicios de facturación electrónica, operadores logísticos y envío de notificaciones.
 
 ---
 
-## Estructura de Puertos de Salida
+## Interfaces de Puertos de Salida (`Output Ports`)
 
-```text
-Output Ports (Interfaces / ABC)
-├── RepositorioCliente
-├── RepositorioUsuario
-├── RepositorioCuentaBancaria
-├── RepositorioPrestamo
-├── RepositorioTransferencia
-├── RepositorioOperacion
-├── RepositorioAuditoria (NoSQL)
-└── ServicioNotificaciones (Puerto de Infraestructura)
-Código en Python (Output-ports.md)
-Python
+```python
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
+from decimal import Decimal
 
 from domain.models import (
-    Cliente, Usuario, CuentaBancaria, Prestamo, Transferencia, Operacion, BitacoraAuditoria
+    Usuario, Comprador, Vendedor, Bodega, Producto, Inventario, Carrito, Pedido, Factura, Envio, Devolucion, Reembolso
 )
-from domain.value_objects import NotificationChannel
 
 
 # ==========================================
-# 1. REPOSITORIO DE CLIENTES
+# 1. PUERTOS DE REPOSITORIOS (PERSISTENCIA)
 # ==========================================
 
-class RepositorioCliente(ABC):
-
-    @abstractmethod
-    def guardar(self, cliente: Cliente) -> Cliente:
-        """Persiste o actualiza un objeto cliente en el almacenamiento."""
-        pass
-
-    @abstractmethod
-    def buscar_por_identificacion(self, identificacion: str) -> Optional[Cliente]:
-        """Obtiene un cliente por su documento de identidad único."""
-        pass
-
-    @abstractmethod
-    def obtener_todos(self, limite: int = 100, offset: int = 0) -> List[Cliente]:
-        """Recupera un listado paginado de clientes."""
-        pass
-
-
-# ==========================================
-# 2. REPOSITORIO DE USUARIOS
-# ==========================================
-
-class RepositorioUsuario(ABC):
-
+class RepositorioUsuarioOutputPort(ABC):
+    """Interfaz de persistencia para Usuarios y sus perfiles asociados."""
     @abstractmethod
     def guardar(self, usuario: Usuario) -> Usuario:
-        """Persiste o actualiza las credenciales y perfil de un usuario."""
         pass
 
     @abstractmethod
-    def buscar_por_id(self, id_usuario: int) -> Optional[Usuario]:
-        """Recupera un usuario mediante su identificador numérico interno."""
+    def buscar_por_id(self, id_usuario: str) -> Optional[Usuario]:
         pass
 
     @abstractmethod
-    def buscar_por_nombre_usuario(self, nombre_usuario: str) -> Optional[Usuario]:
-        """Obtiene las credenciales de un usuario a partir de su username."""
+    def buscar_por_correo(self, correo: str) -> Optional[Usuario]:
+        pass
+
+
+class RepositorioProductoOutputPort(ABC):
+    """Interfaz de persistencia para el catálogo de productos."""
+    @abstractmethod
+    def guardar(self, producto: Producto) -> Producto:
         pass
 
     @abstractmethod
-    def buscar_por_cliente_id(self, id_cliente: str) -> List[Usuario]:
-        """Recupera los usuarios asociados a un cliente específico."""
+    def buscar_por_id(self, id_producto: str) -> Optional[Producto]:
+        pass
+
+    @abstractmethod
+    def listar_por_vendedor(self, id_vendedor: str) -> List[Producto]:
+        pass
+
+
+class RepositorioInventarioOutputPort(ABC):
+    """Interfaz de persistencia para control de existencias en bodegas."""
+    @abstractmethod
+    def guardar(self, inventario: Inventario) -> Inventario:
+        pass
+
+    @abstractmethod
+    def buscar_por_producto_y_bodega(self, id_producto: str, id_bodega: str) -> Optional[Inventario]:
+        pass
+
+    @abstractmethod
+    def obtener_existencias_totales(self, id_producto: str) -> List[Inventario]:
+        pass
+
+
+class RepositorioPedidoOutputPort(ABC):
+    """Interfaz de persistencia para la gestión de pedidos."""
+    @abstractmethod
+    def guardar(self, pedido: Pedido) -> Pedido:
+        pass
+
+    @abstractmethod
+    def buscar_por_id(self, id_pedido: str) -> Optional[Pedido]:
+        pass
+
+    @abstractmethod
+    def listar_por_comprador(self, id_comprador: str) -> List[Pedido]:
         pass
 
 
 # ==========================================
-# 3. REPOSITORIO DE CUENTAS BANCARIAS
+# 2. PUERTOS DE SERVICIOS EXTERNOS (ADAPTERS)
 # ==========================================
 
-class RepositorioCuentaBancaria(ABC):
-
+class PasarelaPagoOutputPort(ABC):
+    """Interfaz para procesamiento financiero con pasarelas externas (Stripe, MercadoPago, etc.)."""
     @abstractmethod
-    def guardar(self, cuenta: CuentaBancaria) -> CuentaBancaria:
-        """Persiste la apertura o modificación de estado/saldo de una cuenta."""
+    def procesar_cobro(self, id_pedido: str, monto: Decimal, token_pago: str) -> bool:
         pass
 
     @abstractmethod
-    def buscar_por_numero_cuenta(self, numero_cuenta: str) -> Optional[CuentaBancaria]:
-        """Obtiene una cuenta bancaria mediante su número único de cuenta."""
+    def ejecutar_reembolso(self, id_reembolso: str, monto: Decimal) -> bool:
+        pass
+
+
+class OperadorLogisticoOutputPort(ABC):
+    """Interfaz de comunicación con las API de los operadores de transporte."""
+    @abstractmethod
+    def solicitar_guia_despacho(self, envio: Envio) -> str:
+        """Retorna el número de guía de seguimiento generado por el transportista."""
+        pass
+
+
+class ServicioNotificacionesOutputPort(ABC):
+    """Interfaz para envío de correos, SMS o notificaciones push."""
+    @abstractmethod
+    def enviar_confirmacion_pedido(self, correo_comprador: str, pedido: Pedido) -> None:
         pass
 
     @abstractmethod
-    def buscar_por_cliente(self, identificacion_cliente: str) -> List[CuentaBancaria]:
-        """Recupera todas las cuentas de las que es titular un cliente."""
+    def notificar_vendedor_nueva_venta(self, correo_vendedor: str, id_pedido: str) -> None:
         pass
-
-
-# ==========================================
-# 4. REPOSITORIO DE PRÉSTAMOS
-# ==========================================
-
-class RepositorioPrestamo(ABC):
-
-    @abstractmethod
-    def guardar(self, prestamo: Prestamo) -> Prestamo:
-        """Persiste la solicitud, aprobación o amortización de un préstamo."""
-        pass
-
-    @abstractmethod
-    def buscar_por_id(self, id_prestamo: str) -> Optional[Prestamo]:
-        """Obtiene un préstamo mediante su identificador de contrato."""
-        pass
-
-    @abstractmethod
-    def buscar_por_cliente(self, identificacion_cliente: str) -> List[Prestamo]:
-        """Obtiene el histórico de créditos asignados a un cliente."""
-        pass
-
-
-# ==========================================
-# 5. REPOSITORIO DE TRANSFERENCIAS
-# ==========================================
-
-class RepositorioTransferencia(ABC):
-
-    @abstractmethod
-    def guardar(self, transferencia: Transferencia) -> Transferencia:
-        """Registra la orden o actualización del estado de una transferencia."""
-        pass
-
-    @abstractmethod
-    def buscar_por_id(self, id_transferencia: str) -> Optional[Transferencia]:
-        """Recupera el detalle de una transferencia bancaria."""
-        pass
-
-    @abstractmethod
-    def buscar_pendientes_aprobacion(self) -> List[Transferencia]:
-        """Obtiene las transferencias que requieren validación jerárquica."""
-        pass
-
-
-# ==========================================
-# 6. REPOSITORIO DE OPERACIONES DE NEGOCIO
-# ==========================================
-
-class RepositorioOperacion(ABC):
-
-    @abstractmethod
-    def guardar(self, operacion: Operacion) -> Operacion:
-        """Persiste un registro histórico de trazabilidad de negocio."""
-        pass
-
-    @abstractmethod
-    def buscar_por_producto(self, id_producto: str) -> List[Operacion]:
-        """Obtiene todas las operaciones efectuadas sobre un producto bancario."""
-        pass
-
-
-# ==========================================
-# 7. REPOSITORIO DE AUDITORÍA (NoSQL Document)
-# ==========================================
-
-class RepositorioAuditoria(ABC):
-
-    @abstractmethod
-    def registrar_evento(self, bitacora: BitacoraAuditoria) -> None:
-        """Persiste de forma inmutable un evento en el almacén de auditoría NoSQL."""
-        pass
-
-    @abstractmethod
-    def consultar_log(self, criterios: Dict[str, Any], limite: int = 100) -> List[BitacoraAuditoria]:
-        """Permite realizar búsquedas dinámicas en la bitácora según metadatos JSON/NoSQL."""
-        pass
-
-
-# ==========================================
-# 8. PUERTO DE INFRAESTRUCTURA: NOTIFICACIONES
-# ==========================================
-
-class ServicioNotificaciones(ABC):
-
-    @abstractmethod
-    def enviar_notificacion(
-        self, 
-        destinatario: str, 
-        mensaje: str, 
-        canal: NotificationChannel,
-        asunto: Optional[str] = None
-    ) -> bool:
-        """Envía notificaciones a usuarios o clientes mediante un canal específico (Email, SMS, Push)."""
-        pass
-
----
-
-### Mapa Consolidado de la Documentación Core en `Domain/`
-
-Con los puertos de salida definidos, la estructura completa de arquitectura para el Dominio queda finalizada:
-
-```text
-Domain/
-├── Domain Model.md                # Entidades en Dataclasses de Python
-├── Domain Value Objects.md        # Catálogos inmutables y Enums
-├── Domain Services.md             # Especificación sombrilla de Servicios
-├── Input-ports.md                 # Contratos ABC de Casos de Uso (Entrada)
-├── Output-ports.md                # Contratos ABC de Repositorios y Servicios (Salida)
-└── services/                      # Detalle de implementaciones por Subdominio
